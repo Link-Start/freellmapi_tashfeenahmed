@@ -260,6 +260,54 @@ profilesRouter.put('/:id', (req: Request, res: Response) => {
   res.json(updated);
 });
 
+// PUT /api/profiles/:id/rename — rename a custom chain (#1179)
+//
+// The generic PUT above deliberately SKIPS name edits on protected profiles
+// and gives no feedback when it does. Renaming deserves its own endpoint
+// because a chain's name is its public API surface: clients select the chain
+// per request as `auto:<name>`, so the rules (reserved words, charset, case-
+// insensitive uniqueness) that gate creation must gate rename exactly, and a
+// silent no-op is worse than a 403 that says why.
+const renameSchema = z.object({ name: profileNameSchema });
+
+profilesRouter.put('/:id/rename', (req: Request, res: Response) => {
+  const db = getDb();
+  const profileId = getId(req);
+  const profile = db.prepare('SELECT id, type FROM profiles WHERE id = ?').get(profileId) as any;
+  if (!profile) {
+    res.status(404).json({ error: { message: 'Profile not found' } });
+    return;
+  }
+
+  const parsed = renameSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: { message: parsed.error.errors.map(e => e.message).join(', ') } });
+    return;
+  }
+
+  // Only custom chains have a user-chosen name. 'Default' and the built-in
+  // presets are referenced by fixed names in docs and client configs; renaming
+  // them would break those references with no way to undo the expectation.
+  if (profile.type !== 'custom') {
+    res.status(403).json({ error: { message: 'Built-in chains cannot be renamed' } });
+    return;
+  }
+
+  // Same case-insensitive uniqueness rule as POST. `id != ?` lets a rename
+  // that only changes case ('MyChain' -> 'mychain') through.
+  const duplicate = db.prepare('SELECT id FROM profiles WHERE LOWER(name) = LOWER(?) AND id != ?')
+    .get(parsed.data.name, profileId) as any;
+  if (duplicate) {
+    res.status(409).json({ error: { message: `Profile with name '${parsed.data.name}' already exists` } });
+    return;
+  }
+
+  db.prepare('UPDATE profiles SET name = ? WHERE id = ?').run(parsed.data.name, profileId);
+
+  const updated = db.prepare('SELECT id, name, emoji, color, type, is_favorite, sort_order, auto_sort, layout_config, auto_include_new_models, created_at FROM profiles WHERE id = ?').get(profileId);
+  res.json(updated);
+});
+
 // PUT /api/profiles/:id/reorder — update model order + enabled for a profile
 const reorderSchema = z.array(z.object({
   modelDbId: z.number(),
