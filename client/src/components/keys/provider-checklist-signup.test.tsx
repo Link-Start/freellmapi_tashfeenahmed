@@ -62,10 +62,14 @@ async function renderExpanded() {
       </QueryClientProvider>,
     )
   })
-  // Let the useQuery fetch resolve and re-render before touching the DOM.
+  // Wait (polling, so it is robust to how many microtask hops the query
+  // client and React take per environment) for the checklist toggle to
+  // render once the mocked fetch resolves, then expand it.
   await act(async () => {
-    await Promise.resolve()
-    await Promise.resolve()
+    for (let i = 0; i < 50; i++) {
+      if (container.querySelector('button')) return
+      await new Promise(resolve => setTimeout(resolve, 10))
+    }
   })
   const toggle = container.querySelector('button')!
   await act(async () => {
