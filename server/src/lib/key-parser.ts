@@ -19,6 +19,11 @@ export interface ParsedKey {
   /** Custom endpoints only: models declared beside the key via
    *  CUSTOM_<n>_MODELS / <PREFIX>_CUSTOM_MODELS (#382). */
   models?: ParsedModelEntry[];
+  /** Display name carried by a format that has one (CSV column 3, export
+   *  JSON `label`). The import route stores it when present instead of
+   *  falling back to the generated env-var-style name — without it a CSV
+   *  round trip renamed every key. */
+  label?: string;
 }
 
 /** A key/value pair on its way to becoming a ParsedKey. `platform` and
@@ -29,6 +34,7 @@ interface KeyPair {
   value: string;
   platform?: string;
   baseUrl?: string;
+  label?: string;
   models?: ParsedModelEntry[];
 }
 
@@ -446,6 +452,7 @@ export function parseCsv(content: string): KeyPair[] {
     const fields = splitCsvLine(lines[i]!);
     const platform = (fields[0] ?? '').trim();
     const key = (fields[1] ?? '').trim();
+    const label = (fields[2] ?? '').trim();
     const baseUrl = (fields[3] ?? '').trim();
 
     if (!key || !platform) continue;
@@ -453,7 +460,9 @@ export function parseCsv(content: string): KeyPair[] {
     const envKey = `${platform.toUpperCase()}_KEY`;
     // Name the platform outright rather than re-deriving it from the prefix:
     // 'custom' has no PREFIX_MAP entry, so inference would drop the row.
-    result.push({ key: envKey, value: key, platform, ...(baseUrl ? { baseUrl } : {}) });
+    // The label (column 3) is carried so an export→import round trip keeps
+    // display names: without it every groq key came back named GROQ_KEY.
+    result.push({ key: envKey, value: key, platform, ...(label ? { label } : {}), ...(baseUrl ? { baseUrl } : {}) });
   }
 
   return result;
@@ -666,13 +675,19 @@ function toParsedKeys(pairs: KeyPair[]): ParseResult {
   const keys: ParsedKey[] = [];
   const skipped: string[] = [];
 
-  for (const { key, value, platform: statedPlatform, baseUrl, models } of pairs) {
+  for (const { key, value, platform: statedPlatform, baseUrl, label, models } of pairs) {
     const prefix = extractPrefix(key);
     const platform = statedPlatform ?? detectPlatform(prefix);
+    // The name before `=` becomes the stored label (splitRawKey in the import
+    // route). Formats that carry a display name — export JSON and CSV column 3
+    // — use it here, exactly as parseExportJson does, so an export/import
+    // round trip does not rename every key to the generated <PLATFORM>_KEY.
+    const name = label?.trim() || key;
 
     if (platform) {
       keys.push({
-        rawKey: `${key}=${value}`, prefix, platform,
+        rawKey: `${name}=${value}`, prefix, platform,
+        ...(label ? { label } : {}),
         ...(baseUrl ? { baseUrl } : {}),
         ...(models?.length ? { models } : {}),
       });
@@ -680,7 +695,7 @@ function toParsedKeys(pairs: KeyPair[]): ParseResult {
     }
 
     if (looksLikeApiKey(value)) {
-      keys.push({ rawKey: `${key}=${value}`, prefix, platform: null });
+      keys.push({ rawKey: `${name}=${value}`, prefix, platform: null, ...(label ? { label } : {}) });
     } else {
       skipped.push(`${key}: value does not look like an API key`);
     }
