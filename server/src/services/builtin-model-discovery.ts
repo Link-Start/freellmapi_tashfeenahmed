@@ -48,16 +48,20 @@ import { customModelSyncFreePatterns, customModelSyncIntervalMs } from './custom
  *  catalog; managedPlatforms in the catalog covers binaries already shipped. */
 export const BUILTIN_DISCOVERY_PLATFORMS: readonly Platform[] = ['github', 'longcat', 'siliconflow'];
 
-/** `BUILTIN_MODEL_DISCOVERY`: 'auto' (default) discovers on key save, after a
- *  healthy check and on the custom-model sync cadence; 'manual' keeps only the
- *  dashboard's Fetch models action; 'off' disables both. */
+/** `BUILTIN_MODEL_DISCOVERY`: 'manual' (default) keeps only the dashboard's
+ *  Fetch models action, so nothing is registered without the operator picking
+ *  it; 'auto' also discovers on key save, after a healthy check and on the
+ *  custom-model sync cadence; 'off' disables both. Manual is the default
+ *  because these providers bill funded accounts (SiliconFlow, LongCat) and
+ *  label paid models inconsistently, so an automatic pass could route traffic
+ *  to models that cost money. */
 export type BuiltinDiscoveryMode = 'auto' | 'manual' | 'off';
 
 export function builtinDiscoveryMode(): BuiltinDiscoveryMode {
   const raw = process.env.BUILTIN_MODEL_DISCOVERY?.trim().toLowerCase();
-  if (raw === 'manual' || raw === 'off') return raw;
+  if (raw === 'auto' || raw === 'off') return raw;
   if (raw === '0' || raw === 'false' || raw === 'disabled') return 'off';
-  return 'auto';
+  return 'manual';
 }
 
 export type IneligibleReason = 'disabled' | 'not_allowlisted' | 'not_openai_compatible' | 'catalog_managed';

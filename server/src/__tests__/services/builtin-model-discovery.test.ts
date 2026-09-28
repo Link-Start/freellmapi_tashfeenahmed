@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { getDb, initDb } from '../../db/index.js';
 import { encrypt } from '../../lib/crypto.js';
 import {
+  builtinDiscoveryMode,
   BUILTIN_DISCOVERY_PLATFORMS,
   autoRegistrable,
   builtinDiscoveryEligibility,
@@ -81,7 +82,7 @@ function rows(platform: string) {
 describe('built-in model discovery (#1348)', () => {
   beforeEach(() => {
     process.env.ENCRYPTION_KEY = '0'.repeat(64);
-    delete process.env.BUILTIN_MODEL_DISCOVERY;
+    process.env.BUILTIN_MODEL_DISCOVERY = 'auto';
     delete process.env.CUSTOM_MODEL_SYNC_FREE_PATTERNS;
     initDb(':memory:');
     resetBuiltinDiscoveryThrottle();
@@ -94,6 +95,13 @@ describe('built-in model discovery (#1348)', () => {
     else process.env.BUILTIN_MODEL_DISCOVERY = ORIGINAL_MODE;
     if (ORIGINAL_PATTERNS === undefined) delete process.env.CUSTOM_MODEL_SYNC_FREE_PATTERNS;
     else process.env.CUSTOM_MODEL_SYNC_FREE_PATTERNS = ORIGINAL_PATTERNS;
+  });
+
+  it('defaults to manual so nothing is registered without the operator picking it', () => {
+    delete process.env.BUILTIN_MODEL_DISCOVERY;
+    expect(builtinDiscoveryMode()).toBe('manual');
+    process.env.BUILTIN_MODEL_DISCOVERY = 'auto';
+    expect(builtinDiscoveryMode()).toBe('auto');
   });
 
   describe('eligibility', () => {
