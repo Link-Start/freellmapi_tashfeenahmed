@@ -20,6 +20,17 @@ describe('parseMaxTokensCeiling', () => {
     expect(parseMaxTokensCeiling('max_completion_tokens must be at most 32768')).toBe(32768);
   });
 
+  it('reads the ceiling from the phrasings the first cut missed', () => {
+    // Providers whose wording the original CEILING alternation did not carry:
+    // each one still benched the model instead of clamping and retrying.
+    expect(parseMaxTokensCeiling('OpenRouter error 400: max_tokens exceeds the maximum allowed value of 4096')).toBe(4096);
+    expect(parseMaxTokensCeiling('Together API error 400: max_tokens (128000) exceeds the model maximum output tokens of 65536')).toBe(65536);
+    expect(parseMaxTokensCeiling('Fireworks 400: max_tokens: 128000 is greater than the maximum 16384')).toBe(16384);
+    expect(parseMaxTokensCeiling('DeepInfra 400: max_tokens must be less than 8192')).toBe(8192);
+    expect(parseMaxTokensCeiling('Mistral 400: max_new_tokens exceeds 32768')).toBe(32768);
+    expect(parseMaxTokensCeiling('custom endpoint 422: max_output_tokens: 100000 is at most 16384')).toBe(16384);
+  });
+
   it('ignores context-window and unrelated errors', () => {
     expect(parseMaxTokensCeiling('Cloudflare API error 413: AiError: Ai: The estimated number of input and maximum output tokens (24092) exceeded this model context window limit (24000).')).toBeNull();
     expect(parseMaxTokensCeiling('Groq API error 413: Request too large for model `x` on tokens per minute (TPM): Limit 8000, Requested 17679')).toBeNull();

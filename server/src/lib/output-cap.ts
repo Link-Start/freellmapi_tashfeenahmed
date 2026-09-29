@@ -17,8 +17,13 @@ const learned = new Map<string, number>();
 
 const MAX_TOKENS_PARAM = /\b(max_tokens|max_completion_tokens|max_output_tokens|maxoutputtokens|max_new_tokens)\b/;
 // The number that follows a ceiling phrase: "less than or equal to `65536`",
-// "maximum output tokens (65536)", "at most 32768", "no more than 8192".
-const CEILING = /(?:less than or equal to|at most|maximum output tokens|no (?:more|greater) than|cannot exceed|must not exceed)\W{0,4}(\d{3,7})/;
+// "maximum output tokens (65536)", "at most 32768", "no more than 8192",
+// "exceeds the maximum allowed value of 4096" (OpenRouter), "greater than the
+// maximum 16384" (Fireworks), "exceeds 32768" (Mistral). The `exceed` branch
+// still demands the number within four non-word characters, so "exceed the
+// remaining context" (no number) and "exceeds the context window limit"
+// (word characters in between) stay unmatched.
+const CEILING = /(?:less than or equal to|less than|at most|no (?:more|greater) than|(?:cannot|must not|can not) exceed|exceed[sd]?|greater than the maximum|maximum output tokens|maximum allowed value|max output tokens|maximum value|output limit|maximum is|is at most)\W{0,4}(?:of\s+)?\W{0,2}(\d{3,7})/;
 
 function capKey(platform: string, modelId: string): string {
   return `${platform}:${modelId}`;
