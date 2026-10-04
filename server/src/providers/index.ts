@@ -166,6 +166,17 @@ register(new OpenAICompatProvider({
     'HTTP-Referer': 'http://localhost:3001',
     'X-Title': 'FreeLLMAPI',
   },
+  // #1403: OpenRouter reports the key's real credit balance and hard limit on
+  // its key-info endpoint (outside /api/v1). limit/remaining are USD amounts
+  // when set; null means the key is on the free tier with no credit cap, so
+  // the probe records whatever pair the endpoint actually fills.
+  quotaProbe: {
+    url: 'https://openrouter.ai/api/v1/key',
+    metric: 'credits',
+    limitFields: ['limit'],
+    remainingFields: ['limit_remaining'],
+    notes: 'openrouter key-info: USD credit (limit/limit_remaining)',
+  },
 }));
 
 // GitHub Models — OpenAI-compatible. Catalog uses `<publisher>/<model>` ids
